@@ -25,7 +25,7 @@ def opt_dependency(wildcards):
     print(wildcards)
     d={'hf':basedir+"mf.chk"}
     if 'hci' in wildcards.startingwf: 
-        d['multideterminant']=basedir+wildcards.startingwf
+        d['multideterminant']=basedir+wildcards.startingwf+".chk"
     nconfig = int(wildcards.nconfig)
     nconfigs = [400,1600]
     ind = nconfigs.index(nconfig)
@@ -61,19 +61,14 @@ rule OPTIMIZE:
 
 
 
-rule TARGET:
-    input: hf="{dir}/hf.chk", casci="{dir}/casci.chk", wf0="{dir}/opt_0_1600.chk", wf1 = "{dir}/opt_1_1600.chk", wf2="{dir}/opt_2_1600.chk"
-    output: "{dir}/opt_target_{w0}_{w1}_{w2}_{nconfig}.chk"
-    run:
-        anchor_wfs = [input.wf0,input.wf1, input.wf2]
-        weights=[float(wildcards.w0),float(wildcards.w1),float(wildcards.w2),0.0]
-        forcing = 2.0*np.ones(3)
-        functions.orthogonal_opt(input.hf, input.casci, anchor_wfs, output[0], weights, nconfig=int(wildcards.nconfig), forcing=forcing, tstep=0.5)
-
-
-
 rule VMC:
-    input:hf="{dir}/hf.chk", casci="{dir}/casci.chk", opt = "{dir}/opt_{fname}.chk"
-    output: "{dir}/vmc_{fname}.chk"
+    input:hf="{dir}/{startingwf}.chk", opt = "{dir}/opt_{startingwf}_{statenumber}_{fname}.chk"
+    output: "{dir}/vmc_{startingwf}_{statenumber}_{fname}.chk"
     run:
-        functions.vmc(input.hf, input.casci, input.opt, output[0], nconfig=200, nblocks=200)
+        multideterminant = None
+        mf = input.hf+".chk"
+        if 'hci' in wildcards.startingwf:
+            multideterminant = input.hf
+            mf = wildcards.dir +"/mf.chk"
+
+        functions.evaluate_vmc(mf, multideterminant, input.opt, output[0], nconfig=8000, nblocks=60)

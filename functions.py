@@ -136,31 +136,22 @@ def orthogonal_opt(
     )
 
 
-def vmc(
-    hf_chkfile, cas_chkfile, start_from, vmc_chkfile, nconfig=500, **kws
-):
-    mol, mf, cas = recover_pyscf_all(hf_chkfile, cas_chkfile)
-    cas.ci = cas.ci[0]
+def generate_accumulators(mol, mf):
+    mo_coeff2rdm = np.array([mf.mo_coeff, mf.mo_coeff])
+    return {
+        'energy':pyqmc.EnergyAccumulator(mol),
+        'rdm1_up':pyqmc.obdm.OBDMAccumulator(mol, orb_coeff=mf.mo_coeff, spin=0),
+        'rdm1_down': pyqmc.obdm.OBDMAccumulator(mol, orb_coeff=mf.mo_coeff, spin=1),
+        #'rdm2_updown': pyqmc.tbdm.TBDMAccumulator(mol, orb_coeff=mo_coeff2rdm, spin=(0,1)),
+        #'rdm2_upup': pyqmc.tbdm.TBDMAccumulator(mol, orb_coeff=mo_coeff2rdm, spin=(0,0))
+    }
 
-    wf, _ = pyqmc.generate_wf(
-        mol,
-        mf,
-        mc=cas,
-        slater_kws={"optimize_orbitals": True},
-        jastrow_kws={"ion_cusp": False, "na": 1},
-    )
-    pyqmc.read_wf(wf, start_from)
-
+def evaluate_vmc(hf_chkfile, ci_chkfile, opt_chkfile, vmc_chkfile, slater_kws=None, nconfig=1000, **kwargs):
+    mol, mf, wf, to_opt = generate_wf(hf_chkfile, ci_chkfile, slater_kws)
     configs = pyqmc.initial_guess(mol, nconfig)
-    acc = pyqmc.EnergyAccumulator(mol)
-    pyqmc.vmc(
-        wf,
-        configs,
-        accumulators={"energy": acc},
-        hdf_file=vmc_chkfile,
-        verbose=True,
-        **kws,
-    )
+    pyqmc.read_wf(wf, opt_chkfile)
+    acc=generate_accumulators(mol, mf)
+    pyqmc.vmc(wf, configs, accumulators=acc, verbose=True, hdf_file = vmc_chkfile, **kwargs)
 
 
 def run_ccsd(hf_chkfile, chkfile):
