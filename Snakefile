@@ -14,6 +14,13 @@ rule HCI:
     run:
         functions.run_hci(input[0],output[0], float(wildcards.tol))
 
+rule CC:
+    input: "{dir}/mf.chk"
+    output: "{dir}/cc.chk"
+    run:
+        functions.run_ccsd(input[0],output[0])
+
+
 rule FCI:
     input: "{dir}/mf.chk"
     output: "{dir}/fci.chk"
