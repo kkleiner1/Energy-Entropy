@@ -2,11 +2,22 @@
 import functions
 import numpy as np
 
+
+#Sequence of configurations to optimize over
+nconfigs = [400,1600,3200]
+
 rule HARTREE_FOCK:
     input:  "{dir}/geom.xyz"
     output: "{dir}/hf/{basis}/mf.chk"
     run:
         functions.hartree_fock(open(input[0],'r').read(), output[0], basis=wildcards.basis)
+
+rule UNRESTRICTED_HARTREE_FOCK:
+    input:  "{dir}/geom.xyz"
+    output: "{dir}/uhf/{basis}/mf.chk"
+    run:
+        functions.unrestricted_hartree_fock(open(input[0],'r').read(), output[0], basis=wildcards.basis)
+
 
 rule HCI:
     input: "{dir}/mf.chk"
@@ -29,21 +40,15 @@ rule FCI:
 
 def opt_dependency(wildcards):
     basedir = f"{wildcards.dir}/"
-    print(wildcards)
     d={'hf':basedir+"mf.chk"}
     if 'hci' in wildcards.startingwf: 
         d['multideterminant']=basedir+wildcards.startingwf+".chk"
     nconfig = int(wildcards.nconfig)
-    nconfigs = [400,1600]
     ind = nconfigs.index(nconfig)
-    for nconf in nconfigs[0:ind]:
-        d[f'runwf{nconf}'] = basedir+f"opt_{wildcards.statenumber}_{nconf}.chk"
     if ind > 0:
-        d['start_from'] = basedir+f"opt_{wildcards.statenumber}_{nconfigs[ind-1]}.chk"
+        d['start_from'] = basedir+f"opt_{wildcards.startingwf}_{wildcards.statenumber}_{nconfigs[ind-1]}.chk"
     for i in range(int(wildcards.statenumber)):
-        d[f'anchor_wf{i}'] = basedir + f"opt_{i}_{nconfigs[-1]}.chk"
-    print(d)
-    print(wildcards)
+        d[f'anchor_wf{i}'] = basedir + f"opt_{wildcards.startingwf}_{i}_{nconfigs[-1]}.chk"
     return d
 
 rule OPTIMIZE:

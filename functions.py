@@ -21,6 +21,12 @@ def hartree_fock(xyz, chkfile, spin=0, basis='vtz'):
     mf.chkfile=chkfile
     mf.kernel()
 
+def unrestricted_hartree_fock(xyz, chkfile, spin=0, basis='vtz'):
+    mol = pyscf.gto.M(atom = xyz, basis=f'ccecpccp{basis}', ecp='ccecp', unit='bohr', charge=0, spin=spin)
+    mf = pyscf.scf.UHF(mol)
+    mf.chkfile=chkfile
+    mf.kernel()
+
 
 def run_hci(hf_chkfile, chkfile, select_cutoff=0.1):
     mol, mf = pyqmc.recover_pyscf(hf_chkfile, cancel_outputs=False)
@@ -158,6 +164,7 @@ def run_ccsd(hf_chkfile, chkfile):
     mol, mf = pyqmc.recover_pyscf(hf_chkfile)
     mycc = pyscf.cc.CCSD(mf).run(verbose=0)
     dm1 = mycc.make_rdm1()
+    print(len(dm1))
     from pyscf.cc import ccsd_t_lambda_slow as ccsd_t_lambda
     from pyscf.cc import ccsd_t_rdm_slow as ccsd_t_rdm
     eris = mycc.ao2mo()
