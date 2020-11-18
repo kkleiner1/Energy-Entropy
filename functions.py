@@ -2,10 +2,6 @@ import os
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
-import os
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["OMP_NUM_THREADS"] = "1"
 import numpy as np
 import pyscf
 import pyqmc.recipes
@@ -23,7 +19,12 @@ def hartree_fock(xyz, chkfile, spin=0, basis='vtz'):
 
 def unrestricted_hartree_fock(xyz, chkfile, spin=0, basis='vtz'):
     mol = pyscf.gto.M(atom = xyz, basis=f'ccecpccp{basis}', ecp='ccecp', unit='bohr', charge=0, spin=spin)
-    mf = pyscf.scf.UHF(mol)
+    mf = pyscf.scf.UHF(mol).run()
+    #check stability
+    mo1 = mf.stability()[0]
+    rdm1 = mf.make_rdm1(mo1, mf.mo_occ)
+    mf = mf.run(rdm1)
+    mf.stability()
     mf.chkfile=chkfile
     mf.kernel()
 
