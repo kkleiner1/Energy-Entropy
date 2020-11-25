@@ -78,7 +78,7 @@ rule VMC:
     output: "{dir}/vmc_{startingwf}_{statenumber}_{fname}.chk"
     run:
         multideterminant = None
-        mf = input.hf+".chk"
+        mf = input.hf
         if 'hci' in wildcards.startingwf:
             multideterminant = input.hf
             mf = wildcards.dir +"/mf.chk"
