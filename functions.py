@@ -29,16 +29,34 @@ def unrestricted_hartree_fock(xyz, chkfile, spin=0, basis='vtz'):
     mf.kernel()
 
 
-def run_hci(hf_chkfile, chkfile, select_cutoff=0.1):
+def dft(xyz,chkfile, spin=0, basis='vtz', functional = 'pbe,pbe'):
+    #HYB_GGA_XC_WB97X, PBE, HSE, M06
+    mol = pyscf.gto.M(atom = xyz, basis=f'ccecpccp{basis}', ecp='ccecp', unit='bohr', charge=0, spin=spin)
+    mf = pyscf.scf.ROKS(mol)
+    mf.xc=functional
+    mf.chkfile=chkfile
+    mf.kernel()
+
+def mean_field(xyz,chkfile, functional, **kwargs):
+    if functional=='hf':
+        hartree_fock(xyz,chkfile, **kwargs)
+    elif functional=='uhf':
+        unrestricted_hartree_fock(xyz,chkfile, **kwargs)
+    else:
+        dft(xyz,chkfile, functional=functional, **kwargs)
+
+
+def run_hci(hf_chkfile, chkfile, select_cutoff=0.1, nroots=2):
     mol, mf = pyqmc.recover_pyscf(hf_chkfile, cancel_outputs=False)
     cisolver = pyscf.hci.SCI(mol)
     cisolver.select_cutoff=select_cutoff
+    cisolver.nroots=nroots
     nmo = mf.mo_coeff.shape[1]
     nelec = mol.nelec
     h1 = mf.mo_coeff.T.dot(mf.get_hcore()).dot(mf.mo_coeff)
     h2 = pyscf.ao2mo.full(mol, mf.mo_coeff)
     e, civec = cisolver.kernel(h1, h2, nmo, nelec, verbose=0)
-    cisolver.ci= civec[0]
+    cisolver.ci= np.array(civec)
     rdm1,rdm2 = cisolver.make_rdm12s(civec[0], nmo, nelec)
     pyscf.lib.chkfile.save(chkfile,'ci',
         {'ci':cisolver.ci,
@@ -50,16 +68,14 @@ def run_hci(hf_chkfile, chkfile, select_cutoff=0.1):
         'rdm':np.array(rdm1)
         })
 
-
-def fci(hf_chkfile, fci_chkfile):
+def fci(hf_chkfile, fci_chkfile, nroots=4):
     mol, mf = pyqmc.recover_pyscf(hf_chkfile, cancel_outputs=False)
     cisolver = pyscf.fci.FCI(mf)
-    cisolver.nroots = 4
+    cisolver.nroots = nroots
     cisolver.kernel()
     print(dir(cisolver))
     with h5py.File(fci_chkfile, "w") as f:
         f["e_tot"] = cisolver.e_tot
-
 
 def recover_hci(hf_chkfile, ci_chkfile):
     mol, mf = pyqmc.recover_pyscf(hf_chkfile)
@@ -67,9 +83,10 @@ def recover_hci(hf_chkfile, ci_chkfile):
     cisolver.__dict__.update(pyscf.lib.chkfile.load(ci_chkfile,'ci'))
     return mol, mf, cisolver
 
-def generate_wf(hf_chkfile, ci_chkfile, slater_kws=None):
+def generate_wf_gs(hf_chkfile, ci_chkfile, slater_kws=None):
     if ci_chkfile is not None:
         mol, mf, cisolver = recover_hci(hf_chkfile, ci_chkfile)
+        cisolver.ci=cisolver.ci[0]
         wf, to_opt = pyqmc.generate_wf(mol, mf, mc=cisolver, slater_kws=slater_kws)
     else: 
         mol, mf = pyqmc.recover_pyscf(hf_chkfile)
@@ -77,11 +94,10 @@ def generate_wf(hf_chkfile, ci_chkfile, slater_kws=None):
     return mol, mf, wf, to_opt
 
 def optimize_gs(hf_chkfile, ci_chkfile, opt_chkfile, start_from=None, slater_kws=None, nconfig=1000, **kwargs):
-    mol, mf, wf, to_opt = generate_wf(hf_chkfile, ci_chkfile, slater_kws)
+    mol, mf, wf, to_opt = generate_wf_gs(hf_chkfile, ci_chkfile, slater_kws)
     if start_from is not None:
         print("reading from", start_from)
         pyqmc.read_wf(wf, start_from)
-
     configs = pyqmc.initial_guess(mol, nconfig)
     acc = pyqmc.gradient_generator(mol, wf, to_opt)
     pyqmc.line_minimization(wf, configs, acc, verbose=True, hdf_file = opt_chkfile, **kwargs)
@@ -144,7 +160,8 @@ def orthogonal_opt(
 
 
 def generate_accumulators(mol, mf):
-    mo_coeff2rdm = np.array([mf.mo_coeff, mf.mo_coeff])
+
+    mo_coeff = np.array([mf.mo_coeff, mf.mo_coeff])
     return {
         'energy':pyqmc.EnergyAccumulator(mol),
         'rdm1_up':pyqmc.obdm.OBDMAccumulator(mol, orb_coeff=mf.mo_coeff, spin=0),

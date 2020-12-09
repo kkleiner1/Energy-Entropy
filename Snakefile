@@ -1,23 +1,18 @@
-
 import functions
 import numpy as np
 
 
 #Sequence of configurations to optimize over
-nconfigs = [400,1600,3200]
 
-rule HARTREE_FOCK:
-    input:  "{dir}/geom.xyz"
-    output: "{dir}/hf/{basis}/mf.chk"
+rule MEAN_FIELD:
+    input: "{dir}/geom.xyz"
+    output: "{dir}/{functional}/{basis}/mf.chk"
+    resources:
+        walltime="4:00:00", partition="qmchamm"
     run:
-        functions.hartree_fock(open(input[0],'r').read(), output[0], basis=wildcards.basis)
-
-rule UNRESTRICTED_HARTREE_FOCK:
-    input:  "{dir}/geom.xyz"
-    output: "{dir}/uhf/{basis}/mf.chk"
-    run:
-        functions.unrestricted_hartree_fock(open(input[0],'r').read(), output[0], basis=wildcards.basis)
-
+        with open(input[0]) as f:
+            xyz=f.read()
+        functions.mean_field(xyz, output[0], basis=wildcards.basis, functional=wildcards.functional)
 
 rule HCI:
     input: "{dir}/mf.chk"
@@ -31,47 +26,70 @@ rule CC:
     run:
         functions.run_ccsd(input[0],output[0])
 
-
 rule FCI:
     input: "{dir}/mf.chk"
     output: "{dir}/fci.chk"
     run:
         functions.fci(input[0], output[0])
 
+
 def opt_dependency(wildcards):
+    nconfigs = [400,1600,3200]
+    d={}
     basedir = f"{wildcards.dir}/"
-    d={'hf':basedir+"mf.chk"}
-    if 'hci' in wildcards.startingwf: 
-        d['multideterminant']=basedir+wildcards.startingwf+".chk"
     nconfig = int(wildcards.nconfig)
     ind = nconfigs.index(nconfig)
+    if hasattr(wildcards,'hci_tol'):
+        startingwf = f'hci{wildcards.hci_tol}'
+    else:
+        startingwf = "mf"
     if ind > 0:
-        d['start_from'] = basedir+f"opt_{wildcards.startingwf}_{wildcards.statenumber}_{nconfigs[ind-1]}.chk"
+        d['start_from'] = basedir+f"opt_{startingwf}_{wildcards.orbitals}_{wildcards.statenumber}_{nconfigs[ind-1]}.chk"
     for i in range(int(wildcards.statenumber)):
-        d[f'anchor_wf{i}'] = basedir + f"opt_{wildcards.startingwf}_{i}_{nconfigs[-1]}.chk"
+        d[f'anchor_wf{i}'] = basedir + f"opt_{startingwf}_{wildcards.orbitals}_{i}_{nconfigs[-1]}.chk"
     return d
 
-rule OPTIMIZE:
-    input: unpack(opt_dependency)
-    output: "{dir}/opt_{startingwf}_{statenumber}_{nconfig}.chk"
+rule OPTIMIZE_MF:
+    input: unpack(opt_dependency), mf = "{dir}/mf.chk"
+    output: "{dir}/opt_mf_{orbitals}_{statenumber}_{nconfig}.chk"
     run:
         n = int(wildcards.statenumber)
         start_from = None
-        multideterminant = None
         if hasattr(input, 'start_from'):
             start_from=input.start_from
-        if hasattr(input, 'multideterminant'):
-            multideterminant = input.multideterminant 
+        if wildcards.orbitals=='orbitals':
+            slater_kws={'optimize_orbitals':True}
+        elif wildcards.orbitals=='fixed':
+            slater_kws={'optimize_orbitals':False}
+        else:
+            raise Exception("Did not expect",wildcards.orbitals)
         if n==0:
-            functions.optimize_gs(input.hf, multideterminant, output[0], start_from=start_from, nconfig = int(wildcards.nconfig), slater_kws={'optimize_orbitals':True})
+            functions.optimize_gs(input.mf, None, output[0], start_from=start_from, nconfig = int(wildcards.nconfig), slater_kws={'optimize_orbitals':True})
         if n > 0:
-            anchor_wfs = [input[f"anchor_wf{i}"] for i in range(n)] 
-            weights=[0.0, 0.0, 0.0, 0.0]
-            weights[n] = 1.0
-            forcing = 2.0*np.ones(n)
-            functions.orthogonal_opt(input.hf, multideterminant, anchor_wfs, output[0], weights, nconfig=int(wildcards.nconfig), forcing=forcing, tstep=0.5)
+            raise Exception("Don't support excited states just yet")
 
 
+rule OPTIMIZE_HCI:
+    input: unpack(opt_dependency), mf = "{dir}/mf.chk", hci="{dir}/hci{hci_tol}.chk"
+    output: "{dir}/opt_hci{hci_tol}_{determinant_cutoff}_{orbitals}_{statenumber}_{nconfig}.chk"
+    run:
+        n = int(wildcards.statenumber)
+        start_from = None
+        if hasattr(input, 'start_from'):
+            start_from=input.start_from
+        if wildcards.orbitals=='orbitals':
+            slater_kws={'optimize_orbitals':True}
+        elif wildcards.orbitals=='fixed':
+            slater_kws={'optimize_orbitals':False}
+        else:
+            raise Exception("Did not expect",wildcards.orbitals)
+
+        slater_kws['tol'] = float(wildcards.determinant_cutoff)
+
+        if n==0:
+            functions.optimize_gs(input.mf, input.hci, output[0], start_from=start_from, nconfig = int(wildcards.nconfig), slater_kws={'optimize_orbitals':True})
+        if n > 0:
+            raise Exception("Don't support excited states just yet")
 
 rule VMC:
     input:hf="{dir}/{startingwf}.chk", opt = "{dir}/opt_{startingwf}_{statenumber}_{fname}.chk"
