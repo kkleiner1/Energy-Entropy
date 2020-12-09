@@ -2,8 +2,6 @@ import functions
 import numpy as np
 
 
-#Sequence of configurations to optimize over
-
 rule MEAN_FIELD:
     input: "{dir}/geom.xyz"
     output: "{dir}/{functional}/{basis}/mf.chk"
@@ -31,7 +29,6 @@ rule FCI:
     output: "{dir}/fci.chk"
     run:
         functions.fci(input[0], output[0])
-
 
 def opt_dependency(wildcards):
     nconfigs = [400,1600,3200]
@@ -92,13 +89,12 @@ rule OPTIMIZE_HCI:
             raise Exception("Don't support excited states just yet")
 
 rule VMC:
-    input:hf="{dir}/{startingwf}.chk", opt = "{dir}/opt_{startingwf}_{statenumber}_{fname}.chk"
-    output: "{dir}/vmc_{startingwf}_{statenumber}_{fname}.chk"
+    input: mf = "{dir}/mf.chk", opt = "{dir}/opt_{variables}.chk"
+    output: "{dir}/vmc_{variables}.chk"
     run:
         multideterminant = None
-        mf = input.hf
-        if 'hci' in wildcards.startingwf:
-            multideterminant = input.hf
-            mf = wildcards.dir +"/mf.chk"
+        startingwf = input.opt.split('/')[-1].split('_')[1]
+        if 'hci' in startingwf:
+            multideterminant = startingwf
 
-        functions.evaluate_vmc(mf, multideterminant, input.opt, output[0], nconfig=8000, nblocks=60)
+        functions.evaluate_vmc(input.mf, multideterminant, input.opt, output[0], nconfig=8000, nblocks=60)

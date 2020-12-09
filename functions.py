@@ -160,18 +160,20 @@ def orthogonal_opt(
 
 
 def generate_accumulators(mol, mf):
-
-    mo_coeff = np.array([mf.mo_coeff, mf.mo_coeff])
+    if len(mf.mo_coeff.shape)==2:
+        mo_coeff = [mf.mo_coeff, mf.mo_coeff]
+    else:
+        mo_coeff=mf.mo_coeff
     return {
         'energy':pyqmc.EnergyAccumulator(mol),
-        'rdm1_up':pyqmc.obdm.OBDMAccumulator(mol, orb_coeff=mf.mo_coeff, spin=0),
-        'rdm1_down': pyqmc.obdm.OBDMAccumulator(mol, orb_coeff=mf.mo_coeff, spin=1),
+        'rdm1_up':pyqmc.obdm.OBDMAccumulator(mol, orb_coeff=mo_coeff[0], spin=0),
+        'rdm1_down': pyqmc.obdm.OBDMAccumulator(mol, orb_coeff=mo_coeff[1], spin=1),
         #'rdm2_updown': pyqmc.tbdm.TBDMAccumulator(mol, orb_coeff=mo_coeff2rdm, spin=(0,1)),
         #'rdm2_upup': pyqmc.tbdm.TBDMAccumulator(mol, orb_coeff=mo_coeff2rdm, spin=(0,0))
     }
 
 def evaluate_vmc(hf_chkfile, ci_chkfile, opt_chkfile, vmc_chkfile, slater_kws=None, nconfig=1000, **kwargs):
-    mol, mf, wf, to_opt = generate_wf(hf_chkfile, ci_chkfile, slater_kws)
+    mol, mf, wf, to_opt = generate_wf_gs(hf_chkfile, ci_chkfile, slater_kws)
     configs = pyqmc.initial_guess(mol, nconfig)
     pyqmc.read_wf(wf, opt_chkfile)
     acc=generate_accumulators(mol, mf)
