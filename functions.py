@@ -180,6 +180,13 @@ def evaluate_vmc(hf_chkfile, ci_chkfile, opt_chkfile, vmc_chkfile, slater_kws=No
     pyqmc.vmc(wf, configs, accumulators=acc, verbose=True, hdf_file = vmc_chkfile, **kwargs)
 
 
+def evaluate_dmc(hf_chkfile, ci_chkfile, opt_chkfile, dmc_chkfile, slater_kws=None, nconfig=1000, **kwargs):
+    mol, mf, wf, to_opt = generate_wf_gs(hf_chkfile, ci_chkfile, slater_kws)
+    configs = pyqmc.initial_guess(mol, nconfig)
+    pyqmc.read_wf(wf, opt_chkfile)
+    acc=generate_accumulators(mol, mf)
+    pyqmc.rundmc(wf, configs, accumulators=acc, verbose=True, hdf_file = dmc_chkfile, **kwargs)
+
 def run_ccsd(hf_chkfile, chkfile):
     mol, mf = pyqmc.recover_pyscf(hf_chkfile)
     mycc = pyscf.cc.CCSD(mf).run(verbose=0)

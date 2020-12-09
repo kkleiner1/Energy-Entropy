@@ -98,3 +98,16 @@ rule VMC:
             multideterminant = startingwf
 
         functions.evaluate_vmc(input.mf, multideterminant, input.opt, output[0], nconfig=8000, nblocks=60)
+
+
+rule DMC:
+    input: mf = "{dir}/mf.chk", opt = "{dir}/opt_{variables}.chk"
+    output: "{dir}/dmc_{variables}_{tstep}.chk"
+    run:
+        multideterminant = None
+        startingwf = input.opt.split('/')[-1].split('_')[1]
+        if 'hci' in startingwf:
+            multideterminant = startingwf
+        tstep = float(wildcards.tstep)
+        nsteps = int(30/tstep)
+        functions.evaluate_dmc(input.mf, multideterminant, input.opt, output[0], tstep=tstep, nsteps=nsteps, nconfig=8000, )
