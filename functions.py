@@ -23,10 +23,8 @@ def unrestricted_hartree_fock(xyz, chkfile, spin=0, basis='vtz'):
     #check stability
     mo1 = mf.stability()[0]
     rdm1 = mf.make_rdm1(mo1, mf.mo_occ)
-    mf = mf.run(rdm1)
-    mf.stability()
     mf.chkfile=chkfile
-    mf.kernel()
+    mf = mf.run(rdm1)
 
 
 def dft(xyz,chkfile, spin=0, basis='vtz', functional = 'pbe,pbe'):
