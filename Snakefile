@@ -95,7 +95,7 @@ rule VMC:
         multideterminant = None
         startingwf = input.opt.split('/')[-1].split('_')[1]
         if 'hci' in startingwf:
-            multideterminant = startingwf
+            multideterminant = wildcards.dir+"/"+startingwf+".chk"
 
         functions.evaluate_vmc(input.mf, multideterminant, input.opt, output[0], nconfig=8000, nblocks=60)
 
@@ -107,7 +107,7 @@ rule DMC:
         multideterminant = None
         startingwf = input.opt.split('/')[-1].split('_')[1]
         if 'hci' in startingwf:
-            multideterminant = startingwf
+            multideterminant = wildcards.dir+"/"+startingwf+".chk"
         tstep = float(wildcards.tstep)
         nsteps = int(30/tstep)
         functions.evaluate_dmc(input.mf, multideterminant, input.opt, output[0], tstep=tstep, nsteps=nsteps, nconfig=8000, )
