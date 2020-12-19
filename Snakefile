@@ -40,10 +40,16 @@ def opt_dependency(wildcards):
         startingwf = f'hci{wildcards.hci_tol}'
     else:
         startingwf = "mf"
+
+    if hasattr(wildcards, 'hci_tol'):
+        basefile = basedir+f"opt_hci{wildcards.hci_tol}_{wildcards.determinant_cutoff}_{wildcards.orbitals}_"
+    else: 
+        basefile = basedir+f"opt_mf_{wildcards.orbitals}_"
+
     if ind > 0:
-        d['start_from'] = basedir+f"opt_{startingwf}_{wildcards.orbitals}_{wildcards.statenumber}_{nconfigs[ind-1]}.chk"
+        d['start_from'] = basefile+f"{wildcards.statenumber}_{nconfigs[ind-1]}.chk"
     for i in range(int(wildcards.statenumber)):
-        d[f'anchor_wf{i}'] = basedir + f"opt_{startingwf}_{wildcards.orbitals}_{i}_{nconfigs[-1]}.chk"
+        d[f'anchor_wf{i}'] = basefile+f"{i}_{nconfigs[-1]}.chk"
     return d
 
 rule OPTIMIZE_MF:
@@ -63,7 +69,7 @@ rule OPTIMIZE_MF:
         if n==0:
             functions.optimize_gs(input.mf, None, output[0], start_from=start_from, nconfig = int(wildcards.nconfig), slater_kws={'optimize_orbitals':True})
         if n > 0:
-            raise Exception("Don't support excited states just yet")
+            raise Exception("Don't support excited states just yet for mean-field wfs")
 
 
 rule OPTIMIZE_HCI:
@@ -84,9 +90,12 @@ rule OPTIMIZE_HCI:
         slater_kws['tol'] = float(wildcards.determinant_cutoff)
 
         if n==0:
-            functions.optimize_gs(input.mf, input.hci, output[0], start_from=start_from, nconfig = int(wildcards.nconfig), slater_kws={'optimize_orbitals':True})
+            functions.optimize_gs(input.mf, input.hci, output[0], start_from=start_from, 
+                                  nconfig = int(wildcards.nconfig), slater_kws=slater_kws)
         if n > 0:
-            raise Exception("Don't support excited states just yet")
+            anchor_wfs = [input[f'anchor_wf{i}'] for i in range(n)]
+            functions.orthogonal_opt(input.mf, input.hci, anchor_wfs, output[0], 
+                                     slater_kws=slater_kws, nconfig=int(wildcards.nconfig) )
 
 rule VMC:
     input: mf = "{dir}/mf.chk", opt = "{dir}/opt_{variables}.chk"

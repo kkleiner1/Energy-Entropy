@@ -44,7 +44,7 @@ def mean_field(xyz,chkfile, functional, **kwargs):
         dft(xyz,chkfile, functional=functional, **kwargs)
 
 
-def run_hci(hf_chkfile, chkfile, select_cutoff=0.1, nroots=2):
+def run_hci(hf_chkfile, chkfile, select_cutoff=0.1, nroots=4):
     mol, mf = pyqmc.recover_pyscf(hf_chkfile, cancel_outputs=False)
     cisolver = pyscf.hci.SCI(mol)
     cisolver.select_cutoff=select_cutoff
@@ -104,9 +104,10 @@ def transform_ci(ci, coeffs):
     return np.sum([ci[i] * coeffs[i] for i in range(len(coeffs))], axis=0)
 
 
-def generate_wfs(hf_chkfile, cas_chkfile, Starget, anchor_wfs):
-    mol, mf, cas = recover_pyscf_all(hf_chkfile, cas_chkfile)
-    cas.ci = transform_ci(cas.ci, Starget)
+def generate_wfs(hf_chkfile, cas_chkfile, weights, anchor_wfs, slater_kws=None, jastrow_kws=None):
+    mol, mf, cas = recover_hci(hf_chkfile, cas_chkfile)
+    cas.ci = transform_ci(cas.ci, weights)
+    print(cas.ci)
 
     wf_anchor = []
     for anchor in anchor_wfs:
@@ -114,8 +115,8 @@ def generate_wfs(hf_chkfile, cas_chkfile, Starget, anchor_wfs):
             mol,
             mf,
             mc=cas,
-            slater_kws={"optimize_orbitals": True},
-            jastrow_kws={"ion_cusp": True, "na": 1},
+            slater_kws=slater_kws,
+            jastrow_kws=jastrow_kws
         )
         pyqmc.read_wf(wf, anchor)
         wf_anchor.append(wf)
@@ -124,8 +125,8 @@ def generate_wfs(hf_chkfile, cas_chkfile, Starget, anchor_wfs):
         mol,
         mf,
         mc=cas,
-        slater_kws={"optimize_orbitals": True},
-        jastrow_kws={"ion_cusp": True, "na": 1},
+        slater_kws=slater_kws,
+        jastrow_kws=jastrow_kws
     )
 
     for k in wf_es.parameters.keys():
@@ -136,13 +137,20 @@ def generate_wfs(hf_chkfile, cas_chkfile, Starget, anchor_wfs):
 
 
 def orthogonal_opt(
-    hf_chkfile, cas_chkfile, anchor_wfs, ortho_chkfile, Starget, nconfig=500, start_from=None, **kws
+    hf_chkfile, cas_chkfile, anchor_wfs, ortho_chkfile, Starget=None, nconfig=500, start_from=None, slater_kws=None, jastrow_kws=None, **kws
 ):
+    if Starget is None:
+        Starget = np.zeros(len(anchor_wfs))
+
+    final_weight = 1.0-np.sum(np.abs(Starget)**2)
+
     mol, wf_anchor, wf_es, to_opt = generate_wfs(
-        hf_chkfile, cas_chkfile, Starget, anchor_wfs
+        hf_chkfile, cas_chkfile, np.append(Starget,[final_weight]), anchor_wfs,
+        slater_kws=slater_kws, jastrow_kws=jastrow_kws
     )
     for k in ["wf1det_coeff", "wf1mo_coeff_alpha", "wf1mo_coeff_beta"]:
-        to_opt[k] = np.ones_like(to_opt[k], dtype="bool")
+        if k in to_opt.keys():
+            to_opt[k] = np.ones_like(to_opt[k], dtype="bool")
     if start_from is not None:
         pyqmc.read_wf(wf_es, start_from)
     configs = pyqmc.initial_guess(mol, nconfig)
@@ -205,13 +213,3 @@ def run_ccsd(hf_chkfile, chkfile):
         'energy':mycc.ccsd_t(),
         'rdm':dm1_t
         })
-
-#run_ccsd('h2_length_1_RHF.chkfile','h2_length_1_ccsd.chkfile')
-
-
-
-
-# molecule = 'h2'
-# for length in  [1]:
-# 	mean_field("{0}_length_{1}_UHF.hdf5".format(molecule,length),length)
-
