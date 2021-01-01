@@ -1,4 +1,5 @@
 import functions
+import concurrent
 import numpy as np
 qmc_threads=40
 
