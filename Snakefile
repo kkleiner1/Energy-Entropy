@@ -1,6 +1,13 @@
 import functions
 import numpy as np
 
+#The sequence of numbers of configurations to use in optimization. 
+#You should check that the energy does not change as you increase this 
+#number.
+nconfigs = [400,1600,3200] 
+
+# This is how many excited states you would like to access
+nroots = 4   
 
 rule MEAN_FIELD:
     input: "{dir}/geom.xyz"
@@ -16,7 +23,7 @@ rule HCI:
     input: "{dir}/mf.chk"
     output: "{dir}/hci{tol}.chk"
     run:
-        functions.run_hci(input[0],output[0], float(wildcards.tol))
+        functions.run_hci(input[0],output[0], float(wildcards.tol), nroots=nroots)
 
 rule CC:
     input: "{dir}/mf.chk"
@@ -28,10 +35,9 @@ rule FCI:
     input: "{dir}/mf.chk"
     output: "{dir}/fci.chk"
     run:
-        functions.fci(input[0], output[0])
+        functions.fci(input[0], output[0], nroots=nroots)
 
 def opt_dependency(wildcards):
-    nconfigs = [400,1600,3200]
     d={}
     basedir = f"{wildcards.dir}/"
     nconfig = int(wildcards.nconfig)
@@ -84,6 +90,8 @@ rule OPTIMIZE_HCI:
             slater_kws={'optimize_orbitals':True}
         elif wildcards.orbitals=='fixed':
             slater_kws={'optimize_orbitals':False}
+        elif wildcards.orbitals=='large':
+            slater_kws={'optimize_orbitals':True, 'optimize_zeros':False}
         else:
             raise Exception("Did not expect",wildcards.orbitals)
 

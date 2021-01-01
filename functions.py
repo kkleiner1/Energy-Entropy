@@ -9,6 +9,7 @@ import h5py
 import pyqmc.multislater
 import pyqmc.tbdm
 import pyscf.hci
+import pyscf.cc
 
 
 def hartree_fock(xyz, chkfile, spin=0, basis='vtz'):
@@ -197,7 +198,6 @@ def run_ccsd(hf_chkfile, chkfile):
     mol, mf = pyqmc.recover_pyscf(hf_chkfile)
     mycc = pyscf.cc.CCSD(mf).run(verbose=0)
     dm1 = mycc.make_rdm1()
-    print(len(dm1))
     from pyscf.cc import ccsd_t_lambda_slow as ccsd_t_lambda
     from pyscf.cc import ccsd_t_rdm_slow as ccsd_t_rdm
     eris = mycc.ao2mo()
