@@ -2,6 +2,7 @@ import functions
 import concurrent
 import numpy as np
 qmc_threads=40
+import json
 
 #The sequence of numbers of configurations to use in optimization. 
 #You should check that the energy does not change as you increase this 
@@ -11,15 +12,21 @@ nconfigs = [400,1600,3200,6400,12800]
 # This is how many excited states you would like to access
 nroots = 4   
 
+rule DEFAULT_SETTINGS:
+    input:
+    output: "{dir}/settings.json"
+    run:
+        json.dump(dict(spin=0), open(output[0],'w'))
+
 rule MEAN_FIELD:
-    input: "{dir}/geom.xyz"
+    input: "{dir}/geom.xyz", "{dir}/settings.json"
     output: "{dir}/{functional}/{basis}/mf.chk"
     resources:
         walltime="4:00:00", partition="qmchamm"
     run:
         with open(input[0]) as f:
             xyz=f.read()
-        functions.mean_field(xyz, output[0], basis=wildcards.basis, functional=wildcards.functional)
+        functions.mean_field(xyz, output[0], settings=json.load(open(input[1])), basis=wildcards.basis, functional=wildcards.functional)
 
 rule HCI:
     input: "{dir}/mf.chk"
