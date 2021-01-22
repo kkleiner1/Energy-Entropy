@@ -10,21 +10,34 @@ import pyqmc.multislater
 import pyqmc.tbdm
 import pyscf.hci
 import pyscf.cc
+from functools import partial
+
+def save_scf_iteration(chkfile, envs):
+    cycle = envs['cycle']
+    info = {'mo_energy':envs['mo_energy'],
+            'e_tot'   : envs['e_tot']}
+    pyscf.scf.chkfile.save(chkfile, 'iteration/%d' % cycle, info)
 
 
 def hartree_fock(xyz, chkfile, spin=0, basis='vtz'):
-    mol = pyscf.gto.M(atom = xyz, basis=f'ccecpccp{basis}', ecp='ccecp', unit='bohr', charge=0, spin=spin)
+    mol = pyscf.gto.M(atom = xyz, basis=f'ccecpccp{basis}', ecp='ccecp', unit='bohr', charge=0, spin=spin, verbose=5)
     mf = pyscf.scf.ROHF(mol)
+    mf.callback = partial(save_scf_iteration,chkfile)
     mf.chkfile=chkfile
-    mf.kernel()
+    dm = mf.init_guess_by_atom()
+    mf.kernel(dm)
 
 def unrestricted_hartree_fock(xyz, chkfile, spin=0, basis='vtz'):
     mol = pyscf.gto.M(atom = xyz, basis=f'ccecpccp{basis}', ecp='ccecp', unit='bohr', charge=0, spin=spin)
-    mf = pyscf.scf.UHF(mol).run()
+    mf = pyscf.scf.UHF(mol)
+    dm = mf.init_guess_by_atom()
+    mf.kernel(dm)
+
     #check stability
     mo1 = mf.stability()[0]
     rdm1 = mf.make_rdm1(mo1, mf.mo_occ)
     mf.chkfile=chkfile
+    mf.callback = partial(save_scf_iteration,chkfile)
     mf = mf.run(rdm1)
 
 
@@ -34,15 +47,18 @@ def dft(xyz,chkfile, spin=0, basis='vtz', functional = 'pbe,pbe'):
     mf = pyscf.scf.ROKS(mol)
     mf.xc=functional
     mf.chkfile=chkfile
-    mf.kernel()
+    mf.callback = partial(save_scf_iteration,chkfile)
+    dm = mf.init_guess_by_atom()
+    mf.kernel(dm)
 
-def mean_field(xyz,chkfile, functional, **kwargs):
+def mean_field(xyz,chkfile, functional, settings=None, **kwargs):
+
     if functional=='hf':
-        hartree_fock(xyz,chkfile, **kwargs)
+        hartree_fock(xyz,chkfile, spin=settings['spin'], **kwargs)
     elif functional=='uhf':
-        unrestricted_hartree_fock(xyz,chkfile, **kwargs)
+        unrestricted_hartree_fock(xyz,chkfile, spin=settings['spin'], **kwargs)
     else:
-        dft(xyz,chkfile, functional=functional, **kwargs)
+        dft(xyz,chkfile, functional=functional, spin=settings['spin'], **kwargs)
 
 
 def run_hci(hf_chkfile, chkfile, select_cutoff=0.1, nroots=4):
