@@ -211,11 +211,16 @@ def evaluate_dmc(hf_chkfile, ci_chkfile, opt_chkfile, dmc_chkfile, slater_kws=No
     pyqmc.rundmc(wf, configs, accumulators=acc, verbose=True, hdf_file = dmc_chkfile, **kwargs)
 
 def run_ccsd(hf_chkfile, chkfile):
-    mol, mf = pyqmc.recover_pyscf(hf_chkfile)
+    mol, mf = pyqmc.recover_pyscf(hf_chkfile,cancel_outputs=False)
     mycc = pyscf.cc.CCSD(mf).run(verbose=0)
     dm1 = mycc.make_rdm1()
-    from pyscf.cc import ccsd_t_lambda_slow as ccsd_t_lambda
-    from pyscf.cc import ccsd_t_rdm_slow as ccsd_t_rdm
+
+    if mol.spin ==0:
+        from pyscf.cc import ccsd_t_lambda_slow as ccsd_t_lambda
+        from pyscf.cc import ccsd_t_rdm_slow as ccsd_t_rdm
+    else:
+        from pyscf.cc import uccsd_t_lambda as ccsd_t_lambda
+        from pyscf.cc import uccsd_t_rdm as ccsd_t_rdm
     eris = mycc.ao2mo()
     conv, l1, l2 = ccsd_t_lambda.kernel(mycc, eris, mycc.t1, mycc.t2)
     dm1_t = ccsd_t_rdm.make_rdm1(mycc, mycc.t1, mycc.t2, l1, l2, eris=eris)

@@ -1,11 +1,13 @@
 import functions
+import concurrent
 import numpy as np
+qmc_threads=2
 import json
 
 #The sequence of numbers of configurations to use in optimization. 
 #You should check that the energy does not change as you increase this 
 #number.
-nconfigs = [400,1600,3200] 
+nconfigs = [400,1600,3200,6400,12800,25600] 
 
 # This is how many excited states you would like to access
 nroots = 4   
@@ -29,12 +31,17 @@ rule MEAN_FIELD:
 rule HCI:
     input: "{dir}/mf.chk"
     output: "{dir}/hci{tol}.chk"
+    resources:
+        walltime="4:00:00", partition="qmchamm"
     run:
         functions.run_hci(input[0],output[0], float(wildcards.tol), nroots=nroots)
 
 rule CC:
     input: "{dir}/mf.chk"
     output: "{dir}/cc.chk"
+    threads: 40
+    resources:
+        walltime="48:00:00", partition="qmchamm"
     run:
         functions.run_ccsd(input[0],output[0])
 
@@ -68,6 +75,8 @@ def opt_dependency(wildcards):
 rule OPTIMIZE_MF:
     input: unpack(opt_dependency), mf = "{dir}/mf.chk"
     output: "{dir}/opt_mf_{orbitals}_{statenumber}_{nconfig}.chk"
+    resources:
+        walltime="72:00:00", partition="qmchamm"
     run:
         n = int(wildcards.statenumber)
         start_from = None
@@ -77,10 +86,12 @@ rule OPTIMIZE_MF:
             slater_kws={'optimize_orbitals':True}
         elif wildcards.orbitals=='fixed':
             slater_kws={'optimize_orbitals':False}
+        elif wildcards.orbitals=='large':
+            slater_kws={'optimize_orbitals':True, 'optimize_zeros':False}
         else:
             raise Exception("Did not expect",wildcards.orbitals)
         if n==0:
-            functions.optimize_gs(input.mf, None, output[0], start_from=start_from, nconfig = int(wildcards.nconfig), slater_kws={'optimize_orbitals':True})
+            functions.optimize_gs(input.mf, None, output[0], start_from=start_from, nconfig = int(wildcards.nconfig), slater_kws=slater_kws)
         if n > 0:
             raise Exception("Don't support excited states just yet for mean-field wfs")
 
@@ -88,6 +99,9 @@ rule OPTIMIZE_MF:
 rule OPTIMIZE_HCI:
     input: unpack(opt_dependency), mf = "{dir}/mf.chk", hci="{dir}/hci{hci_tol}.chk"
     output: "{dir}/opt_hci{hci_tol}_{determinant_cutoff}_{orbitals}_{statenumber}_{nconfig}.chk"
+    threads: qmc_threads
+    resources:
+        walltime="72:00:00", partition="qmchamm"
     run:
         n = int(wildcards.statenumber)
         start_from = None
@@ -105,8 +119,9 @@ rule OPTIMIZE_HCI:
         slater_kws['tol'] = float(wildcards.determinant_cutoff)
 
         if n==0:
-            functions.optimize_gs(input.mf, input.hci, output[0], start_from=start_from, 
-                                  nconfig = int(wildcards.nconfig), slater_kws=slater_kws)
+            with concurrent.futures.ProcessPoolExecutor(max_workers=qmc_threads) as client:
+                functions.optimize_gs(input.mf, input.hci, output[0], start_from=start_from, 
+                                  nconfig = int(wildcards.nconfig), slater_kws=slater_kws, client=client, npartitions=qmc_threads)
         if n > 0:
             anchor_wfs = [input[f'anchor_wf{i}'] for i in range(n)]
             functions.orthogonal_opt(input.mf, input.hci, anchor_wfs, output[0], 
@@ -115,18 +130,25 @@ rule OPTIMIZE_HCI:
 rule VMC:
     input: mf = "{dir}/mf.chk", opt = "{dir}/opt_{variables}.chk"
     output: "{dir}/vmc_{variables}.chk"
+    threads: qmc_threads
+    resources:
+        walltime="24:00:00", partition="qmchamm"
     run:
         multideterminant = None
         startingwf = input.opt.split('/')[-1].split('_')[1]
         if 'hci' in startingwf:
             multideterminant = wildcards.dir+"/"+startingwf+".chk"
 
-        functions.evaluate_vmc(input.mf, multideterminant, input.opt, output[0], nconfig=8000, nblocks=60)
+        with concurrent.futures.ProcessPoolExecutor(max_workers=qmc_threads) as client:
+            functions.evaluate_vmc(input.mf, multideterminant, input.opt, output[0], nconfig=8000, nblocks=60, client=client, npartitions=qmc_threads)
 
 
 rule DMC:
     input: mf = "{dir}/mf.chk", opt = "{dir}/opt_{variables}.chk"
     output: "{dir}/dmc_{variables}_{tstep}.chk"
+    threads: qmc_threads
+    resources:
+        walltime="24:00:00", partition="qmchamm"
     run:
         multideterminant = None
         startingwf = input.opt.split('/')[-1].split('_')[1]
@@ -134,4 +156,5 @@ rule DMC:
             multideterminant = wildcards.dir+"/"+startingwf+".chk"
         tstep = float(wildcards.tstep)
         nsteps = int(30/tstep)
-        functions.evaluate_dmc(input.mf, multideterminant, input.opt, output[0], tstep=tstep, nsteps=nsteps, nconfig=8000, )
+        with concurrent.futures.ProcessPoolExecutor(max_workers=qmc_threads) as client:
+            functions.evaluate_dmc(input.mf, multideterminant, input.opt, output[0], tstep=tstep, nsteps=nsteps, nconfig=8000, client=client, npartitions=qmc_threads)
