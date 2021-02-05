@@ -7,7 +7,7 @@ import json
 #The sequence of numbers of configurations to use in optimization. 
 #You should check that the energy does not change as you increase this 
 #number.
-nconfigs = [400,1600,3200,6400,12800] 
+nconfigs = [400,1600,3200,6400,12800,25600] 
 
 # This is how many excited states you would like to access
 nroots = 4   
@@ -75,6 +75,8 @@ def opt_dependency(wildcards):
 rule OPTIMIZE_MF:
     input: unpack(opt_dependency), mf = "{dir}/mf.chk"
     output: "{dir}/opt_mf_{orbitals}_{statenumber}_{nconfig}.chk"
+    resources:
+        walltime="72:00:00", partition="qmchamm"
     run:
         n = int(wildcards.statenumber)
         start_from = None
@@ -84,10 +86,12 @@ rule OPTIMIZE_MF:
             slater_kws={'optimize_orbitals':True}
         elif wildcards.orbitals=='fixed':
             slater_kws={'optimize_orbitals':False}
+        elif wildcards.orbitals=='large':
+            slater_kws={'optimize_orbitals':True, 'optimize_zeros':False}
         else:
             raise Exception("Did not expect",wildcards.orbitals)
         if n==0:
-            functions.optimize_gs(input.mf, None, output[0], start_from=start_from, nconfig = int(wildcards.nconfig), slater_kws={'optimize_orbitals':True})
+            functions.optimize_gs(input.mf, None, output[0], start_from=start_from, nconfig = int(wildcards.nconfig), slater_kws=slater_kws)
         if n > 0:
             raise Exception("Don't support excited states just yet for mean-field wfs")
 
@@ -97,7 +101,7 @@ rule OPTIMIZE_HCI:
     output: "{dir}/opt_hci{hci_tol}_{determinant_cutoff}_{orbitals}_{statenumber}_{nconfig}.chk"
     threads: qmc_threads
     resources:
-        walltime="24:00:00", partition="qmchamm"
+        walltime="72:00:00", partition="qmchamm"
     run:
         n = int(wildcards.statenumber)
         start_from = None
