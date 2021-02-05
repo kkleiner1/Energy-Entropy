@@ -1,7 +1,7 @@
 import functions
 import concurrent
 import numpy as np
-qmc_threads=40
+qmc_threads=2
 import json
 
 #The sequence of numbers of configurations to use in optimization. 
