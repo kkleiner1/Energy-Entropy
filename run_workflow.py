@@ -3,7 +3,7 @@ import numpy as np
 import itertools
 
 molecule = 'h2'
-basis = ['vtz','vqz']
+basis = ['vtz']
 bond_lengths = [1.2,1.4,1.6,1.8,2.0,3.0,4.0,4.4,4.8,5.0,5.2]
 
 prod = itertools.product(basis,bond_lengths)
@@ -14,7 +14,8 @@ fci_target,vmc_hci,dmc_hci = [],[],[]
 for basis,length in prod:
     #hf_target.append(f"{molecule}_{length}/hf/{basis}/mf.chk")
     #uhf_target.append(f"{molecule}_{length}/uhf/{basis}/mf.chk")
-    cc_target.append(f"{molecule}_{length}/hf/{basis}/mf.chk")
+    cc_target.append(f"{molecule}_{length}/hf/{basis}/cc.chk")
+    fci_target.append(f"{molecule}_{length}/hf/{basis}/fci.chk")
     fci_target.append(f"{molecule}_{length}/uhf/{basis}/fci.chk")
 
     determinant_cutoff=0
@@ -36,4 +37,5 @@ for basis,length in prod:
 targets = cc_target+vmc_target+dmc_target+fci_target+vmc_hci+dmc_hci
 files = " ".join(targets)
 print(targets)
-snakemake.snakemake("Snakefile",cores=1,targets=targets,forcetargets=True)
+snakemake.snakemake("Snakefile",cores=1,targets=targets) #,forcetargets=True
+
