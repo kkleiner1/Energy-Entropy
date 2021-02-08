@@ -75,6 +75,7 @@ def opt_dependency(wildcards):
 rule OPTIMIZE_MF:
     input: unpack(opt_dependency), mf = "{dir}/mf.chk"
     output: "{dir}/opt_mf_{orbitals}_{statenumber}_{nconfig}.chk"
+    threads: qmc_threads
     resources:
         walltime="72:00:00", partition="qmchamm"
     run:
@@ -91,7 +92,9 @@ rule OPTIMIZE_MF:
         else:
             raise Exception("Did not expect",wildcards.orbitals)
         if n==0:
-            functions.optimize_gs(input.mf, None, output[0], start_from=start_from, nconfig = int(wildcards.nconfig), slater_kws=slater_kws)
+            with concurrent.futures.ProcessPoolExecutor(max_workers=qmc_threads) as client:
+                functions.optimize_gs(input.mf, None, output[0], start_from=start_from, nconfig = int(wildcards.nconfig), slater_kws=slater_kws, 
+                    client=client, npartitions=qmc_threads)
         if n > 0:
             raise Exception("Don't support excited states just yet for mean-field wfs")
 
