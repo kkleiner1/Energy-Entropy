@@ -1,11 +1,8 @@
 Intro
 ---------------
----------------
 
-### Snakefile
-The Snakefile sets up a series of rules for calculation. It decomposes the workflow into small steps. We only need to specify the filename of final output, and the Snakefile will figure out the rule which outputs this filename. And it will look for the inputs of this rule. If there is no input available in the directory, but are rules that can generate these inputs. It will automatically run these rules to make inputs first. 
-
-The rules in Snakefile are written in order. 
+### About Snakefile
+The Snakefile sets up a series of rules for calculation. It decomposes the workflow into small steps. We only need to specify the filename of final output, and the Snakefile will figure out the rule which outputs this filename. And it will look for the inputs of this rule. If there is no input available in the directory, but are rules that can generate these inputs. It will automatically run these rules to make inputs first. The rules in Snakefile are written in order. 
 
 ---------------
 
