@@ -2,12 +2,13 @@ import functions
 import concurrent
 import numpy as np
 qmc_threads=2
+partition="wagner"
 import json
 
 #The sequence of numbers of configurations to use in optimization. 
 #You should check that the energy does not change as you increase this 
 #number.
-nconfigs = [400,1600,3200,6400,12800,25600] 
+nconfigs = [400,800,1600,3200,6400,12800,25600] 
 
 # This is how many excited states you would like to access
 nroots = 4   
@@ -22,7 +23,7 @@ rule MEAN_FIELD:
     input: "{dir}/geom.xyz", "{dir}/settings.json"
     output: "{dir}/{functional}/{basis}/mf.chk"
     resources:
-        walltime="4:00:00", partition="qmchamm"
+        walltime="4:00:00", partition=partition
     run:
         with open(input[0]) as f:
             xyz=f.read()
@@ -32,16 +33,16 @@ rule HCI:
     input: "{dir}/mf.chk"
     output: "{dir}/hci{tol}.chk"
     resources:
-        walltime="4:00:00", partition="qmchamm"
+        walltime="4:00:00", partition=partition
     run:
         functions.run_hci(input[0],output[0], float(wildcards.tol), nroots=nroots)
 
 rule CC:
     input: "{dir}/mf.chk"
     output: "{dir}/cc.chk"
-    threads: 40
+    threads: qmc_threads
     resources:
-        walltime="48:00:00", partition="qmchamm"
+        walltime="48:00:00", partition=partition
     run:
         functions.run_ccsd(input[0],output[0])
 
@@ -77,7 +78,7 @@ rule OPTIMIZE_MF:
     output: "{dir}/opt_mf_{orbitals}_{statenumber}_{nconfig}.chk"
     threads: qmc_threads
     resources:
-        walltime="72:00:00", partition="qmchamm"
+        walltime="72:00:00", partition=partition
     run:
         n = int(wildcards.statenumber)
         start_from = None
@@ -104,7 +105,7 @@ rule OPTIMIZE_HCI:
     output: "{dir}/opt_hci{hci_tol}_{determinant_cutoff}_{orbitals}_{statenumber}_{nconfig}.chk"
     threads: qmc_threads
     resources:
-        walltime="72:00:00", partition="qmchamm"
+        walltime="72:00:00", partition=partition
     run:
         n = int(wildcards.statenumber)
         start_from = None
@@ -135,7 +136,7 @@ rule VMC:
     output: "{dir}/vmc_{variables}.chk"
     threads: qmc_threads
     resources:
-        walltime="24:00:00", partition="qmchamm"
+        walltime="24:00:00", partition=partition
     run:
         multideterminant = None
         startingwf = input.opt.split('/')[-1].split('_')[1]
@@ -151,7 +152,7 @@ rule DMC:
     output: "{dir}/dmc_{variables}_{tstep}.chk"
     threads: qmc_threads
     resources:
-        walltime="24:00:00", partition="qmchamm"
+        walltime="24:00:00", partition=partition
     run:
         multideterminant = None
         startingwf = input.opt.split('/')[-1].split('_')[1]
