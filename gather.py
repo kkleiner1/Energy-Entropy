@@ -22,6 +22,7 @@ def separate_variables_in_fname(spl):
 def extract_from_fname(fname):
     fname=fname.replace('.chk','')
     spl=fname.split('/')
+    spl_1=spl[0].split('_')
     if '_' in spl[3]:
         spl_2=spl[3].split('_')
         method,startingwf,orbitals,statenumber,nconfig=separate_variables_in_fname(spl_2)
@@ -35,7 +36,8 @@ def extract_from_fname(fname):
         if (method=="mf"):
             method=spl[1]
 
-    return {"bond_length": spl[0][3:],
+    return {"molecule": spl_1[0],
+            "bond_length": spl_1[1],
             "basis":spl[2],
             "startingwf":startingwf,
             "method":method,
@@ -44,7 +46,6 @@ def extract_from_fname(fname):
             "determinant_cutoff":0,
             "nconfig":nconfig
             }
-
 
 def avg(data):
     mean=np.mean(data,axis=0)
@@ -126,12 +127,12 @@ if __name__=="__main__":
         fname.append(name)
 
     df=pd.DataFrame([create(name) for name in fname])
-    df.to_csv("h2_data.csv", index=False)
+    df.to_csv("data.csv", index=False)
 
-    df1=pd.DataFrame([create(name) for name in fqmc])
-    df1 = df1[(df1.basis=='vtz')]
-    df1.to_csv("h2_qmc.csv", index=False)
+    df1=df[(df.molecule=='h2')].sort_values(by=['bond_length'])
+    df1.to_csv("h2_data.csv", index=False)
 
-    #df2=pd.DataFrame([create(name) for name in fhci])
-    #df2.to_csv("hci.csv", index=False)
+    df2=df[(df.molecule=='h4')].sort_values(by=['bond_length'])
+    df2.to_csv("h4_data.csv", index=False)
     
+ 
